@@ -56,15 +56,16 @@ static void tri_eink_set_luts_red(tri_eink_t* dev);
 
 mrt_status_t tri_eink_init(tri_eink_t* dev, tri_eink_hw_cfg_t* hw, int width, int height)
 {
+
+    //copy in hardware config
     memcpy(&dev->mHW, hw, sizeof(tri_eink_hw_cfg_t));
 
-    dev->mBufferSize = (width * height)/8;
-    dev->mBufferRed = (uint8_t*)malloc( dev->mBufferSize);
-    dev->mBufferBlk = (uint8_t*)malloc( dev->mBufferSize);
-    dev->mWidth = width;
-    dev->mHeight = height;
-    dev->mFont  = NULL;
 
+    //initialize graphics canvases as buffered so they maintain their own data
+    mono_gfx_init_buffered(dev->mCanvasBlk, width, height);
+    mono_gfx_init_buffered(dev->mCanvasRed, width, height);
+
+    dev->mFont = NULL;
 
     tri_eink_reset(dev) ;
 
@@ -126,10 +127,13 @@ mrt_status_t tri_eink_update(tri_eink_t* dev)
 {
     uint8_t Temp = 0x00;
     uint16_t Width, Height;
-    Width = (dev->mWidth % 8 == 0)? (dev->mWidth / 8 ): (dev->mWidth / 8 + 1);
-    Height = dev->mHeight;
-    uint8_t* blackimage= dev->mBufferBlk;
-    uint8_t* redimage = dev->mBufferRed;
+
+    //both canvases are the same size...
+    Width = (dev->mCanvasBlk.mWidth % 8 == 0)? (dev->mCanvasBlk.mWidth / 8 ): (dev->mCanvasBlk.mWidth / 8 + 1);
+    Height = dev->mCanvasBlk.mHeight;
+
+    uint8_t* blackimage= dev->mCanvasBlk.mBuffer;
+    uint8_t* redimage = dev->mCanvasRed.mBuffer;
 
     tri_eink_cmd(dev,INK_DATA_START_TRANSMISSION_1);
     for (uint16_t j = 0; j < Height; j++) {
@@ -181,126 +185,64 @@ mrt_status_t tri_eink_reset(tri_eink_t* dev)
   return MRT_STATUS_OK;
 }
 
-
-mrt_status_t tri_eink_write_buffer(tri_eink_t* dev, uint16_t x, uint16_t y, uint8_t* data, int len, ink_color_e color,  bool wrap)
+mrt_status_t tri_eink_draw_bmp(tri_eink_t* dev, uint16_t x, uint16_t y, GFXBmp* bmp, ink_color_e color)
 {
-  uint32_t cursor = (y * dev->mWidth) + x;
-  uint8_t* pBuffer = dev->mBufferBlk;
-
-  if(color == COLOR_RED)
-    pBuffer = dev->mBufferRed;
-
-  //get number of bits off of alignment in case we are not writing on a byte boundary
-  uint32_t byteOffset = (cursor  / 8);
-  uint8_t bitOffset = cursor % 8;
-
-  //get number of bytes before we would wrap to next row
-  int nextRow = (dev->mWidth - (cursor % dev->mWidth));
-  if((nextRow < len) && (wrap == false))
+  mrt_status_t status;
+  switch(color)
   {
-    len = nextRow;
+    case COLOR_BLACK:
+      status = mono_gfx_draw_bmp(dev->mCanvasBlk, x,y,bmp);
+      break;
+    case COLOR_RED:
+      status = mono_gfx_draw_bmp(dev->mCanvasRed, x,y,bmp);
+      break;
+    default:
+      status = MRT_STATUS_ERROR;
   }
 
-
-  uint8_t prevByte; //used for shifting in data when not aligned
-  uint8_t mask;
-
-
-  //If we are byte aligned , just memcpy the data in
-  if(bitOffset == 0)
-  {
-    memcpy(&pBuffer[byteOffset], data, len);
-  }
-  //If we are not byte aligned, we have to mask and shift in data
-  else
-  {
-    mask = 0xFF << (8-bitOffset);
-    prevByte = pBuffer[byteOffset] & mask;
-
-    for(int i=0; i < len; i++)
-    {
-      pBuffer[byteOffset++] = prevByte | (data[i] >> bitOffset);
-      prevByte = data[i] << (8-bitOffset);
-
-      if(byteOffset >= dev->mBufferSize)
-        byteOffset = 0;
-    }
-  }
-
-
-  //advance cursor
-  cursor += len;
-
-  // If its gone over, wrap
-  while(cursor >= (dev->mWidth * dev->mHeight))
-    cursor -=  (dev->mWidth * dev->mHeight);
-
-  return MRT_STATUS_OK;
-}
-
-
-mrt_status_t tri_eink_draw_bmp(tri_eink_t* dev, uint16_t x, uint16_t y, GFXBmp* bmp, ink_color_e color )
-{
-  uint32_t bmpIdx = 0;
-  for(int i=0; i < bmp->height; i ++)
-  {
-    tri_eink_write_buffer(dev, x,y, &bmp->data[bmpIdx], bmp->width, color, false);
-    bmpIdx += bmp->width;
-  }
-  return MRT_STATUS_OK;
+  return status;
 }
 
 
 mrt_status_t tri_eink_print(tri_eink_t* dev, uint16_t x, uint16_t y, const char * text, ink_color_e color)
 {
-
-  //if a font has not been set, return error
-  if(dev->mFont == NULL)
-    return MRT_STATUS_ERROR;
-
-  uint16_t xx =x;     //current position for writing
-  uint16_t yy = y;
-  GFXglyph* glyph;    //pointer to glyph for current character
-  GFXBmp bmp;         //bitmap struct used to draw glyph
-  char c = *text++;   //grab first character from string
-
-  //run until we hit a null character (end of string)
-  while(c != 0)
+  mrt_status_t status;
+  switch(color)
   {
-    if(c == '\n')
-    {
-      //if character is newline, we advance the y, and reset x
-      yy+= dev->mFont->yAdvance;
-      xx = x;
-    }
-    else if((c >= dev->mFont->first) && (c <= dev->mFont->last))// make sure the font contains this character
-    {
-      //grab the glyph for current character from our font
-      glyph = &dev->mFont->glyph[c - dev->mFont->first]; //index in glyph array is offset by first printable char in font
-
-      //map glyph to a bitmap that we can draw
-      bmp.data = &dev->mFont->bitmap[glyph->bitmapOffset];
-      bmp.width = glyph->width;
-      bmp.height = glyph->height;
-
-      //draw the character
-      tri_eink_draw_bmp(dev, xx + glyph->xOffset, yy + glyph->yOffset, &bmp, color );
-      xx += glyph->xOffset + glyph->xAdvance;
-    }
-
-
-    //get next character
-    c = *text++;
+    case COLOR_BLACK:
+      dev->mCanvasBlk.mFont = dev->mFont;
+      status = mono_gfx_print(dev->mCanvasBlk, x,y,text);
+      break;
+    case COLOR_RED:
+      dev->mCanvasRed.mFont = dev->mFont;
+      status = mono_gfx_print(dev->mCanvasRed, x,y,text);
+      break;
+    default:
+      status = MRT_STATUS_ERROR;
   }
 
-  return MRT_STATUS_OK;
+  return status;
 }
 
 
-mrt_status_t tri_eink_fill(tri_eink_t* dev, uint8_t val)
+mrt_status_t tri_eink_fill(tri_eink_t* dev, ink_color_e color)
 {
-  return MRT_STATUS_OK;
+  mrt_status_t status;
+  switch(color)
+  {
+    case COLOR_BLACK:
+      status = mono_gfx_fill(dev->mCanvasBlk);
+      break;
+    case COLOR_RED:
+      status = mono_gfx_fill(dev->mCanvasRed);
+      break;
+    default:
+      status = MRT_STATUS_ERROR;
+  }
+
+  return status;
 }
+
 
 mrt_status_t tri_eink_wait(tri_eink_t* dev, int timeout_ms)
 {

@@ -4,4 +4,7 @@
 <br/>
 >Partnumber:
 
+
+> Requires: Modules/Utilities/GFX/MonoGfx
+
 driver for 1.5" tri-color e-ink display

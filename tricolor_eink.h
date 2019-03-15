@@ -6,7 +6,7 @@
   */
 
 #include "Platforms/Common/mrt_platform.h"
-#include "Utilities/GFX/Fonts/gfxfont.h"
+#include "Utilities/GFX/MonoGfx/mono_gfx.h"
 
 // EPD1IN54B commands
 #define INK_PANEL_SETTING                               0x00
@@ -56,13 +56,9 @@ typedef struct{
 }tri_eink_hw_cfg_t;
 
 typedef struct{
-  uint8_t* mBufferRed;
-  uint8_t* mBufferBlk;
-  int mWidth;                   //width of display in pixels
-  int mHeight;                  //height of display in pixels
-  GFXfont* mFont;               //font to use for printing
-  uint8_t* mBuffer;             //buffer of pixel data
-  uint32_t mBufferSize;
+  mono_gfx_t mCanvasBlk;
+  mono_gfx_t mCanvasRed;
+  GFXfont mFont;
   tri_eink_hw_cfg_t mHW;
 }tri_eink_t;
 
@@ -104,17 +100,6 @@ mrt_status_t tri_eink_update(tri_eink_t* dev);
   *@return status of operation
   */
 mrt_status_t tri_eink_reset(tri_eink_t* dev);
-
-
-/**
-  *@brief writes an array of bytes to the buffer
-  *@param dev ptr to device descriptor
-  *@param data ptr to black data being written
-  *@param len number of bytes being written
-  *@param wrap whether or not to wrap when we reach the end of current row
-  *@return status of operation
-  */
-mrt_status_t tri_eink_write_buffer(tri_eink_t* dev, uint16_t x, uint16_t y, uint8_t* data, int len, ink_color_e color,  bool wrap);
 
 /**
   *@brief Draws a bitmap to the buffer
