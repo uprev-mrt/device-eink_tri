@@ -44,7 +44,8 @@
 typedef enum{
   COLOR_NONE,
   COLOR_BLACK,
-  COLOR_RED
+  COLOR_RED,
+  COLOR_ALL
 }ink_color_e;
 
 typedef struct{
@@ -58,7 +59,7 @@ typedef struct{
 typedef struct{
   mono_gfx_t mCanvasBlk;
   mono_gfx_t mCanvasRed;
-  GFXfont mFont;
+  GFXfont* mFont;
   tri_eink_hw_cfg_t mHW;
 }tri_eink_t;
 
@@ -122,12 +123,20 @@ mrt_status_t tri_eink_draw_bmp(tri_eink_t* dev, uint16_t x, uint16_t y, GFXBmp* 
 mrt_status_t tri_eink_print(tri_eink_t* dev, uint16_t x, uint16_t y, const char * text, ink_color_e color);
 
 /**
+  *@brief clears buffer and display
+  *@param dev ptr to device
+  *@return status of operation
+  */
+mrt_status_t tri_eink_clear(tri_eink_t* dev);
+
+
+/**
   *@brief fill buffer with value
   *@param dev ptr to device
   *@param val value to write
   *@return status of operation
   */
-mrt_status_t tri_eink_fill(tri_eink_t* dev, ink_color_e color);
+mrt_status_t tri_eink_fill(tri_eink_t* dev, ink_color_e color, uint8_t val);
 
 /**
   *@brief waits for device to not be busy

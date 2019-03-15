@@ -62,8 +62,8 @@ mrt_status_t tri_eink_init(tri_eink_t* dev, tri_eink_hw_cfg_t* hw, int width, in
 
 
     //initialize graphics canvases as buffered so they maintain their own data
-    mono_gfx_init_buffered(dev->mCanvasBlk, width, height);
-    mono_gfx_init_buffered(dev->mCanvasRed, width, height);
+    mono_gfx_init_buffered(&dev->mCanvasBlk, width, height);
+    mono_gfx_init_buffered(&dev->mCanvasRed, width, height);
 
     dev->mFont = NULL;
 
@@ -191,10 +191,10 @@ mrt_status_t tri_eink_draw_bmp(tri_eink_t* dev, uint16_t x, uint16_t y, GFXBmp* 
   switch(color)
   {
     case COLOR_BLACK:
-      status = mono_gfx_draw_bmp(dev->mCanvasBlk, x,y,bmp);
+      status = mono_gfx_draw_bmp(&dev->mCanvasBlk, x,y,bmp);
       break;
     case COLOR_RED:
-      status = mono_gfx_draw_bmp(dev->mCanvasRed, x,y,bmp);
+      status = mono_gfx_draw_bmp(&dev->mCanvasRed, x,y,bmp);
       break;
     default:
       status = MRT_STATUS_ERROR;
@@ -211,11 +211,11 @@ mrt_status_t tri_eink_print(tri_eink_t* dev, uint16_t x, uint16_t y, const char 
   {
     case COLOR_BLACK:
       dev->mCanvasBlk.mFont = dev->mFont;
-      status = mono_gfx_print(dev->mCanvasBlk, x,y,text);
+      status = mono_gfx_print(&dev->mCanvasBlk, x,y,text);
       break;
     case COLOR_RED:
       dev->mCanvasRed.mFont = dev->mFont;
-      status = mono_gfx_print(dev->mCanvasRed, x,y,text);
+      status = mono_gfx_print(&dev->mCanvasRed, x,y,text);
       break;
     default:
       status = MRT_STATUS_ERROR;
@@ -224,17 +224,55 @@ mrt_status_t tri_eink_print(tri_eink_t* dev, uint16_t x, uint16_t y, const char 
   return status;
 }
 
+mrt_status_t tri_eink_clear(tri_eink_t* dev)
+{
+  uint16_t Width, Height;
 
-mrt_status_t tri_eink_fill(tri_eink_t* dev, ink_color_e color)
+  //clear local buffer
+  tri_eink_fill(dev,COLOR_RED,0x00);
+  tri_eink_fill(dev,COLOR_BLACK,0x00);
+
+  //both canvases are the same size...
+  Width = (dev->mCanvasBlk.mWidth % 8 == 0)? (dev->mCanvasBlk.mWidth / 8 ): (dev->mCanvasBlk.mWidth / 8 + 1);
+  Height = dev->mCanvasBlk.mHeight;
+
+    //send black data
+    tri_eink_cmd( dev, INK_DATA_START_TRANSMISSION_1);
+    MRT_DELAY_MS(2);
+    for(uint16_t i = 0; i < Height; i++) {
+        for(uint16_t i = 0; i < Width; i++) {
+            tri_eink_data(dev,0xFF);
+            tri_eink_data(dev,0xFF);
+        }
+    }
+    MRT_DELAY_MS(2);
+
+    //send red data
+    tri_eink_cmd(dev,INK_DATA_START_TRANSMISSION_2);
+    MRT_DELAY_MS(2);
+    for(uint16_t i = 0; i < Height; i++) {
+        for(uint16_t i = 0; i < Width; i++) {
+            tri_eink_data(dev,0xFF);
+        }
+    }
+    MRT_DELAY_MS(2);
+
+    tri_eink_cmd(dev,INK_DISPLAY_REFRESH);
+    tri_eink_wait(dev, 500);
+
+    return MRT_STATUS_OK;
+}
+
+mrt_status_t tri_eink_fill(tri_eink_t* dev, ink_color_e color, uint8_t val)
 {
   mrt_status_t status;
   switch(color)
   {
     case COLOR_BLACK:
-      status = mono_gfx_fill(dev->mCanvasBlk);
+      status = mono_gfx_fill(&dev->mCanvasBlk, val);
       break;
     case COLOR_RED:
-      status = mono_gfx_fill(dev->mCanvasRed);
+      status = mono_gfx_fill(&dev->mCanvasRed, val);
       break;
     default:
       status = MRT_STATUS_ERROR;
