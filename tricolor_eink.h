@@ -124,7 +124,7 @@ mrt_status_t tri_eink_write_buffer(tri_eink_t* dev, uint8_t* data, int len, ink_
   *@param bmp bitmap to draw
   *@return status of operation
   */
-mrt_status_t tri_eink_draw_bmp(tri_eink_t* dev, uint16_t x, uint16_t y, GFXBmp* bmpBlk, ink_color_e color);
+mrt_status_t tri_eink_draw_bmp(tri_eink_t* dev, uint16_t x, uint16_t y, GFXBmp* bmp, ink_color_e color);
 
 /**
   *@brief Draws rendered text to the buffer

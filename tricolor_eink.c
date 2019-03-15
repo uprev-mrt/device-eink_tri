@@ -179,20 +179,117 @@ mrt_status_t tri_eink_reset(tri_eink_t* dev)
 }
 
 
-mrt_status_t tri_eink_write_buffer(tri_eink_t* dev, uint8_t* data, int len, bool wrap)
+mrt_status_t tri_eink_write_buffer(tri_eink_t* dev, uint8_t* data, int len, ink_color_e color,  bool wrap)
 {
+  uint32_t cursor = (y * dev->mWidth) + x;
+  uint8_t* pBuffer = dev->mBufferBlk;
+
+  if(color == COLOR_RED)
+    pBuffer = dev->mBufferRed;
+
+  //get number of bits off of alignment in case we are not writing on a byte boundary
+  uint32_t byteOffset = (cursor  / 8);
+  uint8_t bitOffset = cursor % 8;
+
+  //get number of bytes before we would wrap to next row
+  int nextRow = (dev->mWidth - (cursor % dev->mWidth));
+  if((nextRow < len) && (wrap == false))
+  {
+    len = nextRow;
+  }
+
+
+  uint8_t prevByte; //used for shifting in data when not aligned
+  uint8_t mask;
+
+
+  //If we are byte aligned , just memcpy the data in
+  if(bitOffset == 0)
+  {
+    memcpy(&pBuffer[byteOffset], data, len);
+  }
+  //If we are not byte aligned, we have to mask and shift in data
+  else
+  {
+    mask = 0xFF << (8-bitOffset);
+    prevByte = pBuffer[byteOffset] & mask;
+
+    for(int i=0; i < len; i++)
+    {
+      pBuffer[byteOffset++] = prevByte | (data[i] >> bitOffset);
+      prevByte = data[i] << (8-bitOffset);
+
+      if(byteOffset >= dev->mBufferSize)
+        byteOffset = 0;
+    }
+  }
+
+
+  //advance cursor
+  cursor += len;
+
+  // If its gone over, wrap
+  while(cursor >= (dev->mWidth * dev->mHeight))
+    cursor -=  (dev->mWidth * dev->mHeight);
+
   return MRT_STATUS_OK;
 }
 
 
-mrt_status_t tri_eink_draw_bmp(tri_eink_t* dev, uint16_t x, uint16_t y, GFXBmp* bmp)
+mrt_status_t tri_eink_draw_bmp(tri_eink_t* dev, uint16_t x, uint16_t y, GFXBmp* bmp, ink_color_e color )
 {
+  uint32_t bmpIdx = 0;
+  for(int i=0; i < bmp->height; i ++)
+  {
+    tricolor_eink_write_buffer(dev, &bmp->data[bmpIdx], bmp->width, color, false);
+    bmpIdx += bmp->width;
+  }
   return MRT_STATUS_OK;
 }
 
 
-mrt_status_t tri_eink_print(tri_eink_t* dev, uint16_t x, uint16_t y, const char * text)
+mrt_status_t tri_eink_print(tri_eink_t* dev, uint16_t x, uint16_t y, const char * text, ink_color_e color)
 {
+
+  //if a font has not been set, return error
+  if(dev->mFont == NULL)
+    return MRT_STATUS_ERROR;
+
+  uint16_t xx =x;     //current position for writing
+  uint16_t yy = y;
+  GFXglyph* glyph;    //pointer to glyph for current character
+  GFXBmp bmp;         //bitmap struct used to draw glyph
+  char c = *text++;   //grab first character from string
+
+  //run until we hit a null character (end of string)
+  while(c != 0)
+  {
+    if(c == '\n')
+    {
+      //if character is newline, we advance the y, and reset x
+      yy+= dev->mFont->yAdvance;
+      xx = x;
+    }
+    else if((c >= dev->mFont->first) && (c <= dev->mFont->last))// make sure the font contains this character
+    {
+      //grab the glyph for current character from our font
+      glyph = &dev->mFont->glyph[c - dev->mFont->first]; //index in glyph array is offset by first printable char in font
+
+      //map glyph to a bitmap that we can draw
+      bmp.data = &dev->mFont->bitmap[glyph->bitmapOffset];
+      bmp.width = glyph->width;
+      bmp.height = glyph->height;
+
+      //draw the character
+      tricolor_eink_draw_bmp(dev, xx + glyph->xOffset, yy + glyph->yOffset, &bmp );
+      xx += glyph->xOffset + glyph->xAdvance;
+    }
+
+
+    //get next character
+    c = *text++;
+  }
+
   return MRT_STATUS_OK;
 }
 
