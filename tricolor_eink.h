@@ -114,7 +114,7 @@ mrt_status_t tri_eink_reset(tri_eink_t* dev);
   *@param wrap whether or not to wrap when we reach the end of current row
   *@return status of operation
   */
-mrt_status_t tri_eink_write_buffer(tri_eink_t* dev, uint8_t* data, int len, ink_color_e color,  bool wrap);
+mrt_status_t tri_eink_write_buffer(tri_eink_t* dev, uint16_t x, uint16_t y, uint8_t* data, int len, ink_color_e color,  bool wrap);
 
 /**
   *@brief Draws a bitmap to the buffer
@@ -149,7 +149,7 @@ mrt_status_t tri_eink_fill(tri_eink_t* dev, ink_color_e color);
   *@param dev ptr to device
   *@return status of operation
   */
-mrt_status_t tri_eink_wait(tri_eink_t* dev, uint32_t timeout_ms);
+mrt_status_t tri_eink_wait(tri_eink_t* dev, int timeout_ms);
 
 /**
   *@brief puts device into sleep mode
