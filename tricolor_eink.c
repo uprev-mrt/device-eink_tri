@@ -140,14 +140,14 @@ mrt_status_t tri_eink_update(tri_eink_t* dev)
         for (uint16_t i = 0; i < Width; i++) {
             Temp = 0x00;
             for (int bit = 0; bit < 4; bit++) {
-                if ((blackimage[i + j * Width] & (0x80 >> bit)) != 0) {
+                if (((~blackimage[i + j * Width]) & (0x80 >> bit)) != 0) {
                     Temp |= 0xC0 >> (bit * 2);
                 }
             }
             tri_eink_data(dev,Temp);
             Temp = 0x00;
             for (int bit = 4; bit < 8; bit++) {
-                if ((blackimage[i + j * Width] & (0x80 >> bit)) != 0) {
+                if (((~blackimage[i + j * Width]) & (0x80 >> bit)) != 0) {
                     Temp |= 0xC0 >> ((bit - 4) * 2);
                 }
             }
@@ -159,7 +159,7 @@ mrt_status_t tri_eink_update(tri_eink_t* dev)
     tri_eink_cmd(dev,INK_DATA_START_TRANSMISSION_2);
     for (uint16_t j = 0; j < Height; j++) {
         for (uint16_t i = 0; i < Width; i++) {
-            tri_eink_data(dev,redimage[i + j * Width]);
+            tri_eink_data(dev,(~redimage[i + j * Width]));
         }
     }
     MRT_DELAY_MS(2);

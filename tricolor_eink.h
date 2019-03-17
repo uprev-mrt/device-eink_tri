@@ -59,7 +59,7 @@ typedef struct{
 typedef struct{
   mono_gfx_t mCanvasBlk;
   mono_gfx_t mCanvasRed;
-  GFXfont* mFont;
+  const GFXfont* mFont;
   tri_eink_hw_cfg_t mHW;
 }tri_eink_t;
 
