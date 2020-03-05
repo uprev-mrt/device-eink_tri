@@ -1,0 +1,9 @@
+---
+name: TriColorE-Ink
+author: Jason Berger
+created: 01/30/2020
+category: Device/Displays
+requires: [MonoGfx]
+description: 3 Color e-ink display
+datasheet: https://www.waveshare.com/w/upload/9/9e/1.54inch-e-paper-b-specification.pdf
+mfg: waveshare
